@@ -8,6 +8,7 @@ from telegram.ext import (ApplicationBuilder, CommandHandler, CallbackQueryHandl
                           ContextTypes, MessageHandler, filters)
 from db import add_user, get_all_subscribers, toggle_reminder, get_reminder_status, get_reminder_enabled_users, remove_user, get_user_by_id
 from dotenv import load_dotenv
+from messages import WELCOME_MESSAGE, CHANGE_CITY_PROMPT, UNSUBSCRIBE_CONFIRM, PRAYER_ERROR, CITY_UPDATED, PRAYER_HEADER, UNKNOWN_ERROR
 
 load_dotenv()
 
@@ -41,7 +42,7 @@ PRAYER_MESSAGES = {
 }
 
 async def send_prayer_reminder(context):
-    now = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=3)))
     hour = now.hour
     for prayer, time_hour in PRAYER_TIMES.items():
         if hour == time_hour:
@@ -52,7 +53,7 @@ async def send_prayer_reminder(context):
                     continue
 
 async def send_friday_message(context):
-    now = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=3)))
     if now.weekday() == 4 and now.hour == 12:
         msg = "ﷺ إنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلّونَ عَلَى النَّبِيِ \n\nاللهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّد 🤍"
         for user in get_all_subscribers():
@@ -69,7 +70,7 @@ async def start(update: Update, context):
     keyboard = [
         [InlineKeyboardButton("📅 مواعيد الصلاة", callback_data="prayer_times")],
         [InlineKeyboardButton("🌆 تغيير المدينة", callback_data="change_city")],
-        [InlineKeyboardButton("🔔 تفعيل/إيقاف التذكير", callback_data="toggle_reminder")],
+        [InlineKeyboardButton("🔔 تفعيل/إيقاف تذكير الصلاة", callback_data="toggle_reminder")],
         [InlineKeyboardButton("⛔ إلغاء الاشتراك", callback_data="unsubscribe")]
     ]
 
