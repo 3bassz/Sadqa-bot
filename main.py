@@ -1,5 +1,3 @@
-# Sadqa Bot Final - main.py (نسخة كاملة بالكود النهائي مع أمر /dash وواجهة /start المحسنة)
-
 import os
 import random
 import datetime
@@ -34,11 +32,11 @@ async def send_random_reminder(context):
 
 PRAYER_TIMES = {"Fajr": 5, "Dhuhr": 12, "Asr": 15, "Maghrib": 18, "Isha": 20}
 PRAYER_MESSAGES = {
-    "Fajr": "🏛 حان الآن وقت صلاة الفجر\n✨ ابدأ يومك بالصلاة، فهي نور.",
-    "Dhuhr": "🏛 حان الآن وقت صلاة الظهر\n✨ لا تؤخر صلاتك فهي راحة للقلب.",
-    "Asr": "🏛 حان الآن وقت صلاة العصر\n✨ من حافظ على العصر فهو في حفظ الله.",
-    "Maghrib": "🏛 حان الآن وقت صلاة المغرب\n✨ صلاتك نورك يوم القيامة.",
-    "Isha": "🏛 حان الآن وقت صلاة العشاء\n✨ نم على طهارة وصلاتك لختام اليوم."
+    "Fajr": "\ud83c\udfdb حان الآن وقت صلاة الفجر\n\u2728 ابدأ يومك بالصلاة، فهي نور.",
+    "Dhuhr": "\ud83c\udfdb حان الآن وقت صلاة الظهر\n\u2728 لا تؤخر صلاتك فهي راحة للقلب.",
+    "Asr": "\ud83c\udfdb حان الآن وقت صلاة العصر\n\u2728 من حافظ على العصر فهو في حفظ الله.",
+    "Maghrib": "\ud83c\udfdb حان الآن وقت صلاة المغرب\n\u2728 صلاتك نورك يوم القيامة.",
+    "Isha": "\ud83c\udfdb حان الآن وقت صلاة العشاء\n\u2728 نم على طهارة وصلاتك لختام اليوم."
 }
 
 async def send_prayer_reminder(context):
@@ -55,7 +53,7 @@ async def send_prayer_reminder(context):
 async def send_friday_message(context):
     now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=3)))
     if now.weekday() == 4 and now.hour == 12:
-        msg = "ﷺ إنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلّونَ عَلَى النَّبِيِ \n\nاللهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّد 🤍"
+        msg = "\uFDFD إنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلّونَ عَلَى النَّبِيِ \n\nاللهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّد 🤍"
         for user in get_all_subscribers():
             try:
                 await context.bot.send_message(chat_id=user['user_id'], text=msg)
@@ -63,23 +61,19 @@ async def send_friday_message(context):
                 continue
 
 # --- واجهة /start ---
-async def start(update: Update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     add_user(user.id, user.first_name)
 
     keyboard = [
-        [InlineKeyboardButton("📅 مواعيد الصلاة", callback_data="prayer_times")],
-        [InlineKeyboardButton("🌆 تغيير المدينة", callback_data="change_city")],
-        [InlineKeyboardButton("🔔 تفعيل/إيقاف تذكير الصلاة", callback_data="toggle_reminder")],
-        [InlineKeyboardButton("⛔ إلغاء الاشتراك", callback_data="unsubscribe")]
+        [InlineKeyboardButton("\ud83d\uddd5 مواعيد الصلاة", callback_data="prayer_times")],
+        [InlineKeyboardButton("\ud83c\udf06 تغيير المدينة", callback_data="change_city")],
+        [InlineKeyboardButton("\ud83d\udd14 تفعيل/إيقاف تذكير الصلاة", callback_data="toggle_reminder")],
+        [InlineKeyboardButton("\u26d4 إلغاء الاشتراك", callback_data="unsubscribe")]
     ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
-        "🌿 أهلاً بك في بوت صدقه | Sadqa الإسلامي\n"
-        "البوت صدقه جارية على روح صديقنا (يوسف أحمد إبراهيم) ادعو له بالرحمه والمغفره 🤍\n\n"
-        "اختر ما يناسبك 👇",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await update.message.reply_text(WELCOME_MESSAGE, reply_markup=reply_markup)
 
 # --- أمر لوحة التحكم ---
 async def dash(update: Update, context):
@@ -148,6 +142,38 @@ async def handle_callbacks(update: Update, context):
     elif data == "status":
         await query.edit_message_text("📊 البوت يعمل بشكل جيد ✅")
 
+# --- أوامر المستخدمين ---
+async def handle_user_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = update.effective_user.id
+    user = get_user_by_id(user_id)
+
+    if not user:
+        await query.answer("❌ غير مصرح لك باستخدام هذا الأمر.", show_alert=True)
+        return
+
+    data = query.data
+    if data == "prayer_times":
+        await query.answer()
+        await query.message.reply_text("🕌 هذه مواعيد الصلاة الخاصة بك... (يمكنك تخصيص الرد هنا)")
+
+    elif data == "change_city":
+        context.user_data["mode"] = "change_city"
+        await query.answer()
+        await query.message.reply_text(CHANGE_CITY_PROMPT)
+
+    elif data == "toggle_reminder":
+        current = get_reminder_status(user_id)
+        toggle_reminder(user_id, not current)
+        status = "✅ تم تفعيل التذكير." if not current else "❌ تم إيقاف التذكير."
+        await query.answer()
+        await query.message.reply_text(status)
+
+    elif data == "unsubscribe":
+        remove_user(user_id)
+        await query.answer()
+        await query.message.reply_text(UNSUBSCRIBE_CONFIRM)
+
 # --- استقبال رسائل الوضعيات ---
 async def handle_messages(update: Update, context):
     mode = context.user_data.get('mode')
@@ -188,7 +214,11 @@ if __name__ == '__main__':
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("dash", dash))
-    app.add_handler(CallbackQueryHandler(handle_callbacks))
+
+    # ترتيب المعالجات الصحيح
+    app.add_handler(CallbackQueryHandler(handle_user_buttons, pattern="^(prayer_times|change_city|toggle_reminder|unsubscribe)$"))
+    app.add_handler(CallbackQueryHandler(handle_callbacks, pattern="^(broadcast|announce|list_users|search_user|delete_user|count|status|test_broadcast)$"))
+
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_messages))
 
     app.job_queue.run_repeating(send_random_reminder, interval=10800, first=10)
