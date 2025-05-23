@@ -1,4 +1,4 @@
-# Sadqa Bot Final - main.py (نسخة كاملة بالكود النهائي مع أمر /dash)
+# Sadqa Bot Final - main.py (نسخة كاملة بالكود النهائي مع أمر /dash وواجهة /start المحسنة)
 
 import os
 import random
@@ -6,16 +6,7 @@ import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (ApplicationBuilder, CommandHandler, CallbackQueryHandler,
                           ContextTypes, MessageHandler, filters)
-from db import (
-    add_user,
-    get_all_subscribers,
-    toggle_reminder,
-    get_reminder_status,
-    get_reminder_enabled_users,
-    remove_user,
-    get_user_by_id
-)
-
+from db import add_user, get_all_subscribers, toggle_reminder, get_reminder_status, get_reminder_enabled_users, remove_user, get_user_by_id
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,16 +26,18 @@ async def send_random_reminder(context):
         try:
             verse = random.choice(VERSES_LIST)
             dua = random.choice(AD3IYA_LIST)
-            await context.bot.send_message(chat_id=user['user_id'], text=f"{verse}\n\n{dua}")
-        except: continue
+            await context.bot.send_message(chat_id=user['user_id'], text=verse)
+            await context.bot.send_message(chat_id=user['user_id'], text=dua)
+        except:
+            continue
 
 PRAYER_TIMES = {"Fajr": 5, "Dhuhr": 12, "Asr": 15, "Maghrib": 18, "Isha": 20}
 PRAYER_MESSAGES = {
-    "Fajr": "🕌 حان الآن وقت صلاة الفجر\n✨ ابدأ يومك بالصلاة، فهي نور.",
-    "Dhuhr": "🕌 حان الآن وقت صلاة الظهر\n✨ لا تؤخر صلاتك فهي راحة للقلب.",
-    "Asr": "🕌 حان الآن وقت صلاة العصر\n✨ من حافظ على العصر فهو في حفظ الله.",
-    "Maghrib": "🕌 حان الآن وقت صلاة المغرب\n✨ صلاتك نورك يوم القيامة.",
-    "Isha": "🕌 حان الآن وقت صلاة العشاء\n✨ نم على طهارة وصلاتك لختام اليوم."
+    "Fajr": "🏛 حان الآن وقت صلاة الفجر\n✨ ابدأ يومك بالصلاة، فهي نور.",
+    "Dhuhr": "🏛 حان الآن وقت صلاة الظهر\n✨ لا تؤخر صلاتك فهي راحة للقلب.",
+    "Asr": "🏛 حان الآن وقت صلاة العصر\n✨ من حافظ على العصر فهو في حفظ الله.",
+    "Maghrib": "🏛 حان الآن وقت صلاة المغرب\n✨ صلاتك نورك يوم القيامة.",
+    "Isha": "🏛 حان الآن وقت صلاة العشاء\n✨ نم على طهارة وصلاتك لختام اليوم."
 }
 
 async def send_prayer_reminder(context):
@@ -55,23 +48,39 @@ async def send_prayer_reminder(context):
             for user in get_reminder_enabled_users():
                 try:
                     await context.bot.send_message(chat_id=user['user_id'], text=PRAYER_MESSAGES[prayer])
-                except: continue
+                except:
+                    continue
 
 async def send_friday_message(context):
     now = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
     if now.weekday() == 4 and now.hour == 12:
-        msg = "﴿ إِنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلُّونَ عَلَى النَّبِيِّ ﴾\n\nاللهم صل وسلم وبارك على سيدنا محمد 🤍"
+        msg = "ﷺ إنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلّونَ عَلَى النَّبِيِ \n\nاللهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى سَيِّدِنَا مُحَمَّد 🤍"
         for user in get_all_subscribers():
             try:
                 await context.bot.send_message(chat_id=user['user_id'], text=msg)
-            except: continue
+            except:
+                continue
 
-# --- الأوامر ---
+# --- واجهة /start ---
 async def start(update: Update, context):
     user = update.effective_user
     add_user(user.id, user.first_name)
-    await update.message.reply_text("مرحبًا بك في بوت صدقة، اكتب /dash إن كنت مالك البوت للدخول إلى لوحة التحكم.")
 
+    keyboard = [
+        [InlineKeyboardButton("📅 مواعيد الصلاة", callback_data="prayer_times")],
+        [InlineKeyboardButton("🌆 تغيير المدينة", callback_data="change_city")],
+        [InlineKeyboardButton("🔔 تفعيل/إيقاف التذكير", callback_data="toggle_reminder")],
+        [InlineKeyboardButton("⛔ إلغاء الاشتراك", callback_data="unsubscribe")]
+    ]
+
+    await update.message.reply_text(
+        "🌿 أهلاً بك في بوت صدقه | Sadqa الإسلامي\n"
+        "البوت صدقه جارية على روح صديقنا (يوسف أحمد إبراهيم) ادعو له بالرحمه والمغفره 🤍\n\n"
+        "اختر ما يناسبك 👇",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# --- أمر لوحة التحكم ---
 async def dash(update: Update, context):
     if update.effective_user.id != OWNER_ID:
         return await update.message.reply_text("❌ ليس لديك صلاحية الوصول إلى لوحة التحكم.")
@@ -87,9 +96,12 @@ async def dash(update: Update, context):
          InlineKeyboardButton("✅ اختبار رسالة", callback_data="test_broadcast")]
     ]
 
-    await update.message.reply_text("مرحبًا بك في لوحة تحكم بوت صدقة 🎛️\nاختر من الأزرار التالية 👇",
-                                    reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text(
+        "مرحبًا بك في لوحة تحكم بوت صدقة 🎛️\nاختر من الأزرار التالية 👇",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
+# --- أوامر لوحة التحكم تابع ---
 async def handle_callbacks(update: Update, context):
     query = update.callback_query
     user_id = query.from_user.id
@@ -112,7 +124,8 @@ async def handle_callbacks(update: Update, context):
         for user in get_all_subscribers():
             try:
                 await context.bot.send_message(chat_id=user['user_id'], text="📢 هذه رسالة اختبارية من مالك البوت.")
-            except: continue
+            except:
+                continue
         await query.edit_message_text("✅ تم إرسال الرسالة الاختبارية.")
 
     elif data == "broadcast":
@@ -134,6 +147,7 @@ async def handle_callbacks(update: Update, context):
     elif data == "status":
         await query.edit_message_text("📊 البوت يعمل بشكل جيد ✅")
 
+# --- استقبال رسائل الوضعيات ---
 async def handle_messages(update: Update, context):
     mode = context.user_data.get('mode')
     text = update.message.text.strip()
@@ -142,14 +156,16 @@ async def handle_messages(update: Update, context):
         for user in get_all_subscribers():
             try:
                 await context.bot.send_message(chat_id=user['user_id'], text=text)
-            except: continue
+            except:
+                continue
         await update.message.reply_text("✅ تم إرسال الرسالة بنجاح.")
 
     elif mode == 'announce':
         for user in get_all_subscribers():
             try:
                 await context.bot.send_message(chat_id=user['user_id'], text=f"📣 إعلان:\n{text}")
-            except: continue
+            except:
+                continue
         await update.message.reply_text("✅ تم إرسال الإعلان.")
 
     elif mode == 'search_user':
