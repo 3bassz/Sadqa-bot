@@ -34,7 +34,7 @@ def get_reminder_status(user_id):
 
 # جلب المشتركين المفعّل لديهم التذكير
 def get_reminder_enabled_users():
-    return list(subscribers.find({"reminder": True}, {"_id": 0}))
+    return list(subscribers.find({"reminder": True}, {"_id": 0, "user_id": 1, "location": 1}))
 
 # حذف مستخدم
 def remove_user(user_id):

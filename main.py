@@ -257,7 +257,7 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.LOCATION, handle_location))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_messages))
 
-    app.job_queue.run_repeating(send_random_reminder, interval=10800, first=10)
+    app.job_queue.run_repeating(send_random_reminder, interval=18000, first=10)  # 5 ساعات
     app.job_queue.run_repeating(send_prayer_reminder, interval=3600, first=30)
     app.job_queue.run_repeating(send_friday_message, interval=3600, first=60)
 
