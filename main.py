@@ -2,22 +2,17 @@ import os
 import random
 import datetime
 import requests
-import threading
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import (ApplicationBuilder, CommandHandler, CallbackQueryHandler,
                           ContextTypes, MessageHandler, filters)
 from db import add_user, get_all_subscribers, toggle_reminder, get_reminder_status, get_reminder_enabled_users, remove_user, get_user_by_id, save_user_location, get_user_location
 from dotenv import load_dotenv
 from messages import WELCOME_MESSAGE, CHANGE_CITY_PROMPT, UNSUBSCRIBE_CONFIRM, PRAYER_ERROR, CITY_UPDATED, PRAYER_HEADER, UNKNOWN_ERROR
-from flask import Flask, request
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
-
-# إنشاء Flask app للـ webhook
-flask_app = Flask(__name__)
 
 with open("Ad3iya.txt", encoding="utf-8") as f:
     AD3IYA_LIST = [line.strip() for line in f if line.strip()]
@@ -34,8 +29,6 @@ PRAYER_MESSAGES = {
     "Maghrib": "🏛 حان الآن وقت صلاة المغرب\n✨ صلاتك نورك يوم القيامة.",
     "Isha": "🏛 حان الآن وقت صلاة العشاء\n✨ نم على طهارة وصلاتك لختام اليوم."
 }
-
-telegram_app = None
 
 async def send_random_reminder(context):
     """إرسال تذكير عشوائي من الآيات والأدعية"""
@@ -57,6 +50,7 @@ async def send_prayer_reminder(context):
     
     sent_prayers.setdefault(today_key, {})
     
+    # حذف بيانات الأيام السابقة لتوفير الذاكرة
     keys_to_remove = [key for key in sent_prayers.keys() if key != today_key]
     for key in keys_to_remove:
         del sent_prayers[key]
@@ -71,7 +65,6 @@ async def send_prayer_reminder(context):
         lat, lon = location['lat'], location['lon']
         
         try:
-            
             response = requests.get(
                 f"http://api.aladhan.com/v1/timings?latitude={lat}&longitude={lon}&method=5",
                 timeout=10
@@ -80,18 +73,18 @@ async def send_prayer_reminder(context):
             if response.status_code == 200:
                 timings = response.json()['data']['timings']
                 
-                 
+                # فحص الصلوات الخمس فقط
                 for prayer_name in ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]:
                     prayer_time = timings.get(prayer_name, "")[:5]  # أخذ HH:MM فقط
                     
-                
+                    # مقارنة التوقيت الحالي مع وقت الصلاة
                     if prayer_time == current_time:
                         user_prayers = sent_prayers[today_key].setdefault(user_id, [])
                         
                         if prayer_name not in user_prayers:
                             user_prayers.append(prayer_name)
                             
-                            
+                            # إرسال رسالة الصلاة المخصصة
                             message = PRAYER_MESSAGES.get(prayer_name, f"🏛 حان وقت صلاة {prayer_name}")
                             
                             try:
@@ -288,47 +281,27 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data['mode'] = None
 
-@flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    if telegram_app:
-        update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-        telegram_app.update_queue.put(update)
-    return 'OK'
-
-@flask_app.route('/')
-def index():
-    return 'Telegram Bot is running!'
-
-@flask_app.route('/health')
-def health():
-    return 'Bot is healthy!'
-
 if __name__ == '__main__':
-    telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    telegram_app.add_handler(CommandHandler("start", start))
-    telegram_app.add_handler(CommandHandler("dash", dash))
-
-    telegram_app.add_handler(CallbackQueryHandler(handle_user_buttons, pattern="^(prayer_times|change_city|toggle_reminder|unsubscribe|send_location)$"))
-    telegram_app.add_handler(CallbackQueryHandler(handle_callbacks, pattern="^(broadcast|announce|list_users|search_user|delete_user|count|status|test_broadcast)$"))
-
-    telegram_app.add_handler(MessageHandler(filters.LOCATION, handle_location))
-    telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_messages))
-
-    telegram_app.job_queue.run_repeating(send_random_reminder, interval=18000, first=10)  # كل 5 ساعات
-    telegram_app.job_queue.run_repeating(send_prayer_reminder, interval=300, first=30)    # كل 5 دقائق لدقة أكبر
-    telegram_app.job_queue.run_repeating(send_friday_message, interval=3600, first=60)    # كل ساعة
-
-    def run_bot():
-        print("🤖 Starting Telegram bot...")
-        telegram_app.run_polling()
-
-    bot_thread = threading.Thread(target=run_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-
-    port = int(os.environ.get("PORT", 5000))
-    print(f"🌐 Starting Flask server on port {port}...")
-    print("✅ Sadqa Bot is running...")
+    print("🤖 Starting Telegram bot as Background Worker...")
     
-    flask_app.run(host="0.0.0.0", port=port, debug=False)
+    # إنشاء التطبيق
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # إضافة المعالجات
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("dash", dash))
+
+    app.add_handler(CallbackQueryHandler(handle_user_buttons, pattern="^(prayer_times|change_city|toggle_reminder|unsubscribe|send_location)$"))
+    app.add_handler(CallbackQueryHandler(handle_callbacks, pattern="^(broadcast|announce|list_users|search_user|delete_user|count|status|test_broadcast)$"))
+
+    app.add_handler(MessageHandler(filters.LOCATION, handle_location))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_messages))
+
+    # المهام المجدولة المحسّنة
+    app.job_queue.run_repeating(send_random_reminder, interval=18000, first=10)  # كل 5 ساعات
+    app.job_queue.run_repeating(send_prayer_reminder, interval=300, first=30)    # كل 5 دقائق لدقة أكبر
+    app.job_queue.run_repeating(send_friday_message, interval=3600, first=60)    # كل ساعة
+
+    # تشغيل البوت بـ polling فقط
+    print("✅ Sadqa Bot is running...")
+    app.run_polling()
