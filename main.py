@@ -27,7 +27,6 @@ with open("verses.txt", encoding="utf-8") as f:
 
 sent_prayers = {}
 
-# رسائل الصلاة المحسّنة
 PRAYER_MESSAGES = {
     "Fajr": "🏛 حان الآن وقت صلاة الفجر\n✨ ابدأ يومك بالصلاة، فهي نور.",
     "Dhuhr": "🏛 حان الآن وقت صلاة الظهر\n✨ لا تؤخر صلاتك فهي راحة للقلب.",
@@ -36,10 +35,8 @@ PRAYER_MESSAGES = {
     "Isha": "🏛 حان الآن وقت صلاة العشاء\n✨ نم على طهارة وصلاتك لختام اليوم."
 }
 
-# متغير عام للـ application
 telegram_app = None
 
-# --- مهام مجدولة محسّنة ---
 async def send_random_reminder(context):
     """إرسال تذكير عشوائي من الآيات والأدعية"""
     for user in get_all_subscribers():
@@ -58,10 +55,8 @@ async def send_prayer_reminder(context):
     today_key = now.strftime("%Y-%m-%d")
     current_time = now.strftime("%H:%M")
     
-    # تنظيف البيانات القديمة
     sent_prayers.setdefault(today_key, {})
     
-    # حذف بيانات الأيام السابقة لتوفير الذاكرة
     keys_to_remove = [key for key in sent_prayers.keys() if key != today_key]
     for key in keys_to_remove:
         del sent_prayers[key]
@@ -76,7 +71,7 @@ async def send_prayer_reminder(context):
         lat, lon = location['lat'], location['lon']
         
         try:
-            # إضافة timeout للـ API request
+            
             response = requests.get(
                 f"http://api.aladhan.com/v1/timings?latitude={lat}&longitude={lon}&method=5",
                 timeout=10
@@ -85,18 +80,18 @@ async def send_prayer_reminder(context):
             if response.status_code == 200:
                 timings = response.json()['data']['timings']
                 
-                # فحص الصلوات الخمس فقط
+                 
                 for prayer_name in ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]:
                     prayer_time = timings.get(prayer_name, "")[:5]  # أخذ HH:MM فقط
                     
-                    # مقارنة التوقيت الحالي مع وقت الصلاة
+                
                     if prayer_time == current_time:
                         user_prayers = sent_prayers[today_key].setdefault(user_id, [])
                         
                         if prayer_name not in user_prayers:
                             user_prayers.append(prayer_name)
                             
-                            # إرسال رسالة الصلاة المخصصة
+                            
                             message = PRAYER_MESSAGES.get(prayer_name, f"🏛 حان وقت صلاة {prayer_name}")
                             
                             try:
@@ -122,7 +117,6 @@ async def send_friday_message(context):
                 print(f"خطأ في إرسال رسالة الجمعة للمستخدم {user['user_id']}: {e}")
                 continue
 
-# --- استقبال الموقع ---
 async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     location = update.message.location
@@ -130,7 +124,6 @@ async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_user_location(user.id, location.latitude, location.longitude)
         await update.message.reply_text("✅ تم حفظ موقعك بنجاح! سيتم إرسال مواعيد الصلاة بناءً عليه.")
 
-# --- واجهة /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     add_user(user.id, user.first_name)
@@ -144,7 +137,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(WELCOME_MESSAGE, reply_markup=keyboard)
 
-# --- الرد على الأزرار ---
 async def handle_user_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -192,7 +184,6 @@ async def handle_user_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         remove_user(user_id)
         await query.message.reply_text(UNSUBSCRIBE_CONFIRM)
 
-# --- لوحة التحكم ---
 async def dash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         return await update.message.reply_text("❌ ليس لديك صلاحية الوصول إلى لوحة التحكم.")
@@ -213,7 +204,6 @@ async def dash(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# --- أوامر لوحة التحكم ---
 async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -259,7 +249,6 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "status":
         await query.edit_message_text("📊 البوت يعمل بشكل جيد ✅")
 
-# --- استقبال رسائل الوضعيات ---
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = context.user_data.get('mode')
     text = update.message.text.strip()
@@ -299,7 +288,6 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data['mode'] = None
 
-# --- إعداد الـ webhook للـ Flask ---
 @flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
     if telegram_app:
@@ -315,12 +303,9 @@ def index():
 def health():
     return 'Bot is healthy!'
 
-# --- تشغيل البوت ---
 if __name__ == '__main__':
-    # إنشاء التطبيق
     telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # إضافة المعالجات
     telegram_app.add_handler(CommandHandler("start", start))
     telegram_app.add_handler(CommandHandler("dash", dash))
 
@@ -330,12 +315,10 @@ if __name__ == '__main__':
     telegram_app.add_handler(MessageHandler(filters.LOCATION, handle_location))
     telegram_app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_messages))
 
-    # إضافة المهام المجدولة مع فترات محسّنة
     telegram_app.job_queue.run_repeating(send_random_reminder, interval=18000, first=10)  # كل 5 ساعات
     telegram_app.job_queue.run_repeating(send_prayer_reminder, interval=300, first=30)    # كل 5 دقائق لدقة أكبر
     telegram_app.job_queue.run_repeating(send_friday_message, interval=3600, first=60)    # كل ساعة
 
-    # تشغيل البوت في thread منفصل
     def run_bot():
         print("🤖 Starting Telegram bot...")
         telegram_app.run_polling()
@@ -344,7 +327,6 @@ if __name__ == '__main__':
     bot_thread.daemon = True
     bot_thread.start()
 
-    # تشغيل Flask server على البورت المطلوب
     port = int(os.environ.get("PORT", 5000))
     print(f"🌐 Starting Flask server on port {port}...")
     print("✅ Sadqa Bot is running...")
