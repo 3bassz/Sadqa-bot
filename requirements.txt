@@ -2,4 +2,5 @@ python-telegram-bot[job-queue]==20.3
 flask
 pymongo
 python-dotenv
+Flask==2.3.3
 requests
