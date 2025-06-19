@@ -46,8 +46,8 @@ user_points = {}
 user_achievements = {}
 weekly_challenges = {}
 
-# نظام التفاعل مع الأدعية - جديد
-dua_interactions = {}  # {dua_id: {user_id: {"type": "amen/like", "timestamp": datetime, "comment": ""}}}
+# نظام التفاعل مع الأدعية - محدث
+dua_interactions = {}  # {dua_id: {user_id: {"type": "amen/like", "timestamp": datetime}}}
 dua_messages = {}      # {dua_id: {"text": "نص الدعاء", "message_ids": [list of message_ids]}}
 user_interaction_history = {}  # {user_id: [list of dua_ids they interacted with]}
 
@@ -58,8 +58,7 @@ ACHIEVEMENTS = {
     "location_shared": {"name": "📍 مشارك الموقع", "description": "شارك موقعه لدقة أكبر", "points": 20},
     "feedback_giver": {"name": "💬 مقدم التغذية الراجعة", "description": "قدم تعليق أو اقتراح", "points": 15},
     "first_interaction": {"name": "🤲 أول تفاعل", "description": "أول تفاعل مع دعاء", "points": 5},
-    "active_interactor": {"name": "💫 متفاعل نشط", "description": "تفاعل مع 10 أدعية", "points": 30},
-    "commenter": {"name": "💬 معلق", "description": "ترك تعليق على دعاء", "points": 8}
+    "active_interactor": {"name": "💫 متفاعل نشط", "description": "تفاعل مع 10 أدعية", "points": 30}
 }
 
 PRAYER_MESSAGES = {
@@ -105,12 +104,12 @@ def get_user_stats_advanced(user_id):
         "interactions_count": interactions_count
     }
 
-# دوال التفاعل مع الأدعية - جديد
+# دوال التفاعل مع الأدعية - محدثة
 def generate_dua_id():
     """توليد معرف فريد للدعاء"""
     return f"dua_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{random.randint(1000, 9999)}"
 
-def add_dua_interaction(dua_id, user_id, interaction_type, comment=""):
+def add_dua_interaction(dua_id, user_id, interaction_type):
     """إضافة تفاعل مع الدعاء"""
     if dua_id not in dua_interactions:
         dua_interactions[dua_id] = {}
@@ -122,8 +121,7 @@ def add_dua_interaction(dua_id, user_id, interaction_type, comment=""):
     # إضافة التفاعل
     dua_interactions[dua_id][user_id] = {
         "type": interaction_type,
-        "timestamp": datetime.datetime.now(),
-        "comment": comment
+        "timestamp": datetime.datetime.now()
     }
     
     # إضافة إلى تاريخ المستخدم
@@ -132,7 +130,7 @@ def add_dua_interaction(dua_id, user_id, interaction_type, comment=""):
     user_interaction_history[user_id].append(dua_id)
     
     # إضافة النقاط
-    points = 3 if interaction_type in ["amen", "like"] else 5 if comment else 3
+    points = 3
     add_user_points(user_id, points, f"تفاعل مع دعاء ({interaction_type})")
     
     # فحص الإنجازات
@@ -140,8 +138,6 @@ def add_dua_interaction(dua_id, user_id, interaction_type, comment=""):
         return True, check_and_award_achievement(user_id, "first_interaction")
     elif len(user_interaction_history[user_id]) >= 10:
         return True, check_and_award_achievement(user_id, "active_interactor")
-    elif comment:
-        return True, check_and_award_achievement(user_id, "commenter")
     
     return True, None
 
@@ -151,9 +147,8 @@ def remove_dua_interaction(dua_id, user_id):
         return False
     
     # حذف النقاط
-    interaction = dua_interactions[dua_id][user_id]
-    points = 3 if interaction["type"] in ["amen", "like"] else 5 if interaction["comment"] else 3
-    remove_user_points(user_id, points, f"حذف تفاعل مع دعاء ({interaction['type']})")
+    points = 3
+    remove_user_points(user_id, points, f"حذف تفاعل مع دعاء")
     
     # حذف التفاعل
     del dua_interactions[dua_id][user_id]
@@ -167,23 +162,21 @@ def remove_dua_interaction(dua_id, user_id):
 def get_dua_interactions_summary(dua_id):
     """الحصول على ملخص التفاعلات مع الدعاء"""
     if dua_id not in dua_interactions:
-        return {"amen": 0, "like": 0, "comments": 0, "total": 0}
+        return {"amen": 0, "like": 0, "total": 0}
     
     interactions = dua_interactions[dua_id]
-    summary = {"amen": 0, "like": 0, "comments": 0, "total": len(interactions)}
+    summary = {"amen": 0, "like": 0, "total": len(interactions)}
     
     for user_id, interaction in interactions.items():
         if interaction["type"] == "amen":
             summary["amen"] += 1
         elif interaction["type"] == "like":
             summary["like"] += 1
-        if interaction["comment"]:
-            summary["comments"] += 1
     
     return summary
 
 def create_dua_keyboard(dua_id, user_id):
-    """إنشاء لوحة مفاتيح التفاعل مع الدعاء"""
+    """إنشاء لوحة مفاتيح التفاعل مع الدعاء - محدثة"""
     summary = get_dua_interactions_summary(dua_id)
     user_interacted = dua_id in dua_interactions and user_id in dua_interactions[dua_id]
     
@@ -198,9 +191,6 @@ def create_dua_keyboard(dua_id, user_id):
             InlineKeyboardButton(amen_text, callback_data=f"dua_amen_{dua_id}"),
             InlineKeyboardButton(like_text, callback_data=f"dua_like_{dua_id}")
         ])
-        buttons.append([
-            InlineKeyboardButton(f"💬 تعليق ({summary['comments']})", callback_data=f"dua_comment_{dua_id}")
-        ])
     else:
         # إظهار التفاعل الحالي مع خيار الحذف
         user_interaction = dua_interactions[dua_id][user_id]
@@ -214,20 +204,6 @@ def create_dua_keyboard(dua_id, user_id):
                 InlineKeyboardButton(amen_text, callback_data="dua_already_interacted"),
                 InlineKeyboardButton(f"✅ {like_text}", callback_data=f"dua_remove_{dua_id}")
             ])
-        
-        if user_interaction["comment"]:
-            buttons.append([
-                InlineKeyboardButton(f"✅ تعليق ({summary['comments']})", callback_data=f"dua_view_comments_{dua_id}")
-            ])
-        else:
-            buttons.append([
-                InlineKeyboardButton(f"💬 تعليق ({summary['comments']})", callback_data=f"dua_comment_{dua_id}")
-            ])
-    
-    # زر عرض التفاعلات
-    buttons.append([
-        InlineKeyboardButton(f"👥 عرض التفاعلات ({summary['total']})", callback_data=f"dua_show_interactions_{dua_id}")
-    ])
     
     return InlineKeyboardMarkup(buttons)
 
@@ -240,7 +216,7 @@ async def send_random_reminder(context):
             verse = random.choice(VERSES_LIST)
             await context.bot.send_message(chat_id=user['user_id'], text=verse)
             
-            # إرسال دعاء مع إمكانية التفاعل
+            # إرسال دعاء مع إمكانية التفاعل - حذف النص الإضافي
             dua = random.choice(AD3IYA_LIST)
             dua_id = generate_dua_id()
             
@@ -250,7 +226,7 @@ async def send_random_reminder(context):
             keyboard = create_dua_keyboard(dua_id, user['user_id'])
             message = await context.bot.send_message(
                 chat_id=user['user_id'], 
-                text=f"🤲 {dua}\n\n💫 تفاعل مع الدعاء:",
+                text=f"🤲 {dua}",
                 reply_markup=keyboard
             )
             
@@ -412,12 +388,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📍 اختيار مدينة", callback_data="select_city"),
          InlineKeyboardButton("📍 إرسال موقعي", callback_data="send_location")],
         [InlineKeyboardButton("🏆 نقاطي وإنجازاتي", callback_data="my_stats")],
-        [InlineKeyboardButton("🔔 إعدادات التذكير", callback_data="toggle_reminder")],
+        [InlineKeyboardButton("🔔 تفعيل/إيقاف تذكير الصلاة", callback_data="toggle_reminder")],
         [InlineKeyboardButton("💬 تقييم البوت", callback_data="feedback")],
         [InlineKeyboardButton("🚫 إلغاء الاشتراك", callback_data="unsubscribe")]
     ])
 
     await update.message.reply_text(WELCOME_MESSAGE, reply_markup=keyboard)
+
+# دالة محسنة للحصول على الصلاة القادمة
+def get_next_prayer(timings, current_time):
+    """الحصول على الصلاة القادمة بدقة"""
+    prayers = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
+    current_hour = int(current_time[:2])
+    current_minute = int(current_time[3:5])
+    current_total_minutes = current_hour * 60 + current_minute
+    
+    for prayer in prayers:
+        prayer_time = timings.get(prayer, "")
+        if prayer_time:
+            prayer_hour = int(prayer_time[:2])
+            prayer_minute = int(prayer_time[3:5])
+            prayer_total_minutes = prayer_hour * 60 + prayer_minute
+            
+            # إضافة هامش 10 دقائق بعد وقت الأذان لاعتبار الصلاة منتهية
+            if prayer_total_minutes > current_total_minutes + 10:
+                return prayer, prayer_time
+    
+    # إذا انتهت صلوات اليوم، الصلاة القادمة هي فجر الغد
+    return "Fajr", "غداً إن شاء الله"
 
 async def handle_user_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -480,7 +478,8 @@ async def handle_user_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                         time_12 = datetime.datetime.strptime(time_24, "%H:%M").strftime("%I:%M %p")
                         
                         # تمييز الصلاة القادمة
-                        if time_24 > current_time:
+                        next_prayer, _ = get_next_prayer(timings, current_time)
+                        if name == next_prayer:
                             prayer_lines.append(f"⏰ **{name}: {time_12}** (القادمة)")
                         else:
                             prayer_lines.append(f"• {name}: {time_12}")
@@ -505,15 +504,11 @@ async def handle_user_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                     timings = response.json()['data']['timings']
                     current_time = datetime.datetime.now().strftime("%H:%M")
                     
-                    next_prayer = None
-                    for name in ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]:
-                        if timings[name] > current_time:
-                            next_prayer = (name, timings[name])
-                            break
+                    next_prayer, next_time = get_next_prayer(timings, current_time)
                     
-                    if next_prayer:
-                        time_12 = datetime.datetime.strptime(next_prayer[1], "%H:%M").strftime("%I:%M %p")
-                        await query.message.reply_text(f"⏰ **الصلاة القادمة:**\n🕌 {next_prayer[0]} - {time_12}", parse_mode='Markdown')
+                    if next_time != "غداً إن شاء الله":
+                        time_12 = datetime.datetime.strptime(next_time, "%H:%M").strftime("%I:%M %p")
+                        await query.message.reply_text(f"⏰ **الصلاة القادمة:**\n🕌 {next_prayer} - {time_12}", parse_mode='Markdown')
                     else:
                         await query.message.reply_text("✅ انتهت صلوات اليوم. صلاة الفجر غداً إن شاء الله.")
             except:
@@ -571,14 +566,17 @@ async def handle_user_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         elif data == "toggle_reminder":
             current = get_reminder_status(user_id)
             toggle_reminder(user_id, not current)
-            status = "✅ تم تفعيل التذكير." if not current else "❌ تم إيقاف التذكير."
+            if not current:
+                status = "✅ تم تفعيل تذكير مواعيد الصلاة بنجاح!\n🕌 ستصلك إشعارات عند كل وقت صلاة."
+            else:
+                status = "❌ تم إيقاف تذكير مواعيد الصلاة.\n🔕 لن تصلك إشعارات مواعيد الصلاة."
             await query.message.reply_text(status)
 
         elif data == "unsubscribe":
             remove_user(user_id)
             await query.message.reply_text(UNSUBSCRIBE_CONFIRM)
 
-        # معالجة التفاعل مع الأدعية - جديد
+        # معالجة التفاعل مع الأدعية - محدثة
         elif data.startswith("dua_"):
             await handle_dua_interaction(update, context)
 
@@ -590,7 +588,7 @@ async def handle_user_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.message.reply_text("❌ حدث خطأ، يرجى المحاولة مرة أخرى.")
 
 async def handle_dua_interaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة التفاعل مع الأدعية"""
+    """معالجة التفاعل مع الأدعية - محدثة"""
     query = update.callback_query
     data = query.data
     user_id = query.from_user.id
@@ -630,12 +628,6 @@ async def handle_dua_interaction(update: Update, context: ContextTypes.DEFAULT_T
             else:
                 await query.answer(result, show_alert=True)
         
-        elif data.startswith("dua_comment_"):
-            dua_id = data.replace("dua_comment_", "")
-            context.user_data['mode'] = 'dua_comment'
-            context.user_data['dua_id'] = dua_id
-            await query.message.reply_text("💬 اكتب تعليقك على الدعاء:")
-        
         elif data.startswith("dua_remove_"):
             dua_id = data.replace("dua_remove_", "")
             success = remove_dua_interaction(dua_id, user_id)
@@ -645,14 +637,6 @@ async def handle_dua_interaction(update: Update, context: ContextTypes.DEFAULT_T
                 await query.answer("❌ تم حذف تفاعلك", show_alert=True)
             else:
                 await query.answer("لم يتم العثور على تفاعلك", show_alert=True)
-        
-        elif data.startswith("dua_show_interactions_"):
-            dua_id = data.replace("dua_show_interactions_", "")
-            await show_dua_interactions(query, dua_id)
-        
-        elif data.startswith("dua_view_comments_"):
-            dua_id = data.replace("dua_view_comments_", "")
-            await show_dua_comments(query, dua_id)
     
     except Exception as e:
         print(f"خطأ في معالجة تفاعل الدعاء: {e}")
@@ -664,7 +648,6 @@ async def update_dua_message(context, dua_id):
         return
     
     dua_data = dua_messages[dua_id]
-    dua_text = dua_data["text"]
     
     for message_info in dua_data["message_ids"]:
         try:
@@ -678,86 +661,14 @@ async def update_dua_message(context, dua_id):
             print(f"خطأ في تحديث رسالة الدعاء: {e}")
             continue
 
-async def show_dua_interactions(query, dua_id):
-    """عرض تفاعلات الدعاء"""
-    if dua_id not in dua_interactions:
-        await query.answer("لا توجد تفاعلات بعد", show_alert=True)
-        return
-    
-    interactions = dua_interactions[dua_id]
-    summary = get_dua_interactions_summary(dua_id)
-    
-    text = f"👥 **تفاعلات الدعاء:**\n\n"
-    text += f"🤲 اللهم آمين: {summary['amen']}\n"
-    text += f"❤️ أعجبني: {summary['like']}\n"
-    text += f"💬 تعليقات: {summary['comments']}\n"
-    text += f"👥 إجمالي التفاعلات: {summary['total']}\n\n"
-    
-    # عرض أسماء المتفاعلين
-    amen_users = []
-    like_users = []
-    
-    for user_id, interaction in interactions.items():
-        try:
-            user = get_user_by_id(user_id)
-            name = user['name'] if user else f"مستخدم {user_id}"
-            
-            if interaction["type"] == "amen":
-                amen_users.append(name)
-            elif interaction["type"] == "like":
-                like_users.append(name)
-        except:
-            continue
-    
-    if amen_users:
-        text += f"🤲 **قالوا آمين:** {', '.join(amen_users[:10])}"
-        if len(amen_users) > 10:
-            text += f" و{len(amen_users) - 10} آخرين"
-        text += "\n\n"
-    
-    if like_users:
-        text += f"❤️ **أعجبهم:** {', '.join(like_users[:10])}"
-        if len(like_users) > 10:
-            text += f" و{len(like_users) - 10} آخرين"
-    
-    await query.message.reply_text(text[:4000], parse_mode='Markdown')
-
-async def show_dua_comments(query, dua_id):
-    """عرض تعليقات الدعاء"""
-    if dua_id not in dua_interactions:
-        await query.answer("لا توجد تعليقات بعد", show_alert=True)
-        return
-    
-    interactions = dua_interactions[dua_id]
-    comments = []
-    
-    for user_id, interaction in interactions.items():
-        if interaction["comment"]:
-            try:
-                user = get_user_by_id(user_id)
-                name = user['name'] if user else f"مستخدم {user_id}"
-                comments.append(f"💬 **{name}:** {interaction['comment']}")
-            except:
-                continue
-    
-    if not comments:
-        await query.answer("لا توجد تعليقات بعد", show_alert=True)
-        return
-    
-    text = f"💬 **تعليقات الدعاء:**\n\n" + "\n\n".join(comments[:10])
-    if len(comments) > 10:
-        text += f"\n\n... و{len(comments) - 10} تعليق آخر"
-    
-    await query.message.reply_text(text[:4000], parse_mode='Markdown')
-
 async def dash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         return await update.message.reply_text("❌ ليس لديك صلاحية الوصول إلى لوحة التحكم.")
 
     # لوحة تحكم متقدمة
     keyboard = [
-        [InlineKeyboardButton("📊 إحصائيات متقدمة", callback_data="advanced_stats"),
-         InlineKeyboardButton("📈 تحليلات النمو", callback_data="growth_analytics")],
+        [InlineKeyboardButton("📊 عدد المشتركين", callback_data="count"),
+         InlineKeyboardButton("📈 إحصائيات متقدمة", callback_data="advanced_stats")],
         [InlineKeyboardButton("👥 إدارة المستخدمين", callback_data="user_management"),
          InlineKeyboardButton("🏆 إحصائيات النقاط", callback_data="points_stats")],
         [InlineKeyboardButton("🤲 إحصائيات التفاعل", callback_data="interaction_stats"),
@@ -788,7 +699,11 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await query.edit_message_text("❌ غير مصرح.")
 
     try:
-        if data == "advanced_stats":
+        if data == "count":
+            count = len(get_all_subscribers())
+            await query.edit_message_text(f"🔢 **عدد المشتركين الحاليين:** {count}", parse_mode='Markdown')
+
+        elif data == "advanced_stats":
             users = get_all_subscribers()
             reminder_enabled = len([u for u in users if get_reminder_status(u['user_id'])])
             with_location = len([u for u in users if get_user_location(u['user_id'])])
@@ -810,17 +725,42 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await query.edit_message_text(stats_text, parse_mode='Markdown')
 
+        elif data == "user_management":
+            try:
+                users = get_all_subscribers()
+                if not users:
+                    await query.edit_message_text("📋 لا يوجد مشتركين حالياً")
+                    return
+                
+                text = f"👥 **إدارة المستخدمين ({len(users)}):**\n\n"
+                for i, user in enumerate(users[:20], 1):
+                    try:
+                        reminder_status = "🔔" if get_reminder_status(user['user_id']) else "🔕"
+                        location_status = "📍" if get_user_location(user['user_id']) else "❌"
+                        points = user_points.get(user['user_id'], 0)
+                        interactions = len(user_interaction_history.get(user['user_id'], []))
+                        user_name = user.get('name', 'غير محدد')
+                        text += f"{i}. {user_name} - {user['user_id']}\n   {reminder_status} {location_status} ⭐{points} 🤲{interactions}\n"
+                    except Exception as e:
+                        print(f"خطأ في معالجة بيانات المستخدم {user.get('user_id', 'غير معروف')}: {e}")
+                        continue
+                
+                if len(users) > 20:
+                    text += f"\n... و {len(users) - 20} مستخدم آخر"
+                
+                await query.edit_message_text(text[:4000], parse_mode='Markdown')
+            except Exception as e:
+                print(f"خطأ في إدارة المستخدمين: {e}")
+                await query.edit_message_text("❌ حدث خطأ في تحميل بيانات المستخدمين")
+
         elif data == "interaction_stats":
             total_interactions = sum(len(interactions) for interactions in dua_interactions.values())
             total_duas = len(dua_interactions)
-            total_comments = sum(1 for interactions in dua_interactions.values() 
-                               for interaction in interactions.values() if interaction["comment"])
             
             stats_text = f"""🤲 **إحصائيات التفاعل مع الأدعية:**
 
 📿 إجمالي الأدعية المرسلة: {total_duas}
 👥 إجمالي التفاعلات: {total_interactions}
-💬 إجمالي التعليقات: {total_comments}
 📊 متوسط التفاعل لكل دعاء: {round(total_interactions/total_duas, 1) if total_duas > 0 else 0}
 
 🏆 **أكثر المستخدمين تفاعلاً:**"""
@@ -862,45 +802,6 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 stats_text += "لا توجد أدعية بتفاعلات بعد"
 
             await query.edit_message_text(stats_text, parse_mode='Markdown')
-
-        elif data == "growth_analytics":
-            users = get_all_subscribers()
-            total_users = len(users)
-            
-            growth_text = f"""📈 **تحليلات النمو:**
-
-📊 إجمالي المستخدمين: {total_users}
-📅 متوسط المستخدمين الجدد يومياً: {max(1, total_users // 30)}
-🎯 الهدف الشهري: {total_users + 100}
-📱 معدل الاحتفاظ: 85%
-🔄 معدل النشاط: 70%
-🤲 معدل التفاعل مع الأدعية: {round(len([u for u in users if u['user_id'] in user_interaction_history])/total_users*100, 1) if total_users > 0 else 0}%
-
-💡 **توصيات:**
-• زيادة المحتوى التفاعلي
-• تحسين أوقات الإرسال
-• إضافة المزيد من التحديات"""
-
-            await query.edit_message_text(growth_text, parse_mode='Markdown')
-
-        elif data == "user_management":
-            users = get_all_subscribers()
-            if not users:
-                await query.edit_message_text("📋 لا يوجد مشتركين حالياً")
-                return
-            
-            text = f"👥 **إدارة المستخدمين ({len(users)}):**\n\n"
-            for i, user in enumerate(users[:20], 1):
-                reminder_status = "🔔" if get_reminder_status(user['user_id']) else "🔕"
-                location_status = "📍" if get_user_location(user['user_id']) else "❌"
-                points = user_points.get(user['user_id'], 0)
-                interactions = len(user_interaction_history.get(user['user_id'], []))
-                text += f"{i}. {user['name']} - {user['user_id']}\n   {reminder_status} {location_status} ⭐{points} 🤲{interactions}\n"
-            
-            if len(users) > 20:
-                text += f"\n... و {len(users) - 20} مستخدم آخر"
-            
-            await query.edit_message_text(text[:4000], parse_mode='Markdown')
 
         elif data == "points_stats":
             if not user_points:
@@ -991,15 +892,6 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • إضافة المزيد من الحوافز"""
 
             await query.edit_message_text(feedback_text, parse_mode='Markdown')
-
-        elif data == "count":
-            count = len(get_all_subscribers())
-            await query.edit_message_text(f"🔢 عدد المشتركين: {count}")
-        
-        elif data == "list_users":
-            users = get_all_subscribers()
-            text = "📋 المشتركين:\n" + "\n".join(f"{u['name']} - {u['user_id']}" for u in users)
-            await query.edit_message_text(text[:4000])
 
         elif data == "test_broadcast":
             success_count = 0
@@ -1110,31 +1002,6 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result_message += f"\n❌ فشل الإرسال لـ {failed_count} مستخدم"
         
         await update.message.reply_text(result_message)
-
-    elif mode == 'dua_comment':
-        # معالجة تعليق على الدعاء
-        dua_id = context.user_data.get('dua_id')
-        comment_text = update.message.text.strip()
-        
-        if dua_id and comment_text:
-            success, result = add_dua_interaction(dua_id, update.effective_user.id, "comment", comment_text)
-            
-            if success:
-                await update_dua_message(context, dua_id)
-                await update.message.reply_text("✅ تم إضافة تعليقك على الدعاء!")
-                
-                # إرسال إشعار الإنجاز إذا وجد
-                if result:
-                    await update.message.reply_text(
-                        f"🎉 مبروك! حصلت على إنجاز: {result['name']}\n+{result['points']} نقطة!"
-                    )
-            else:
-                await update.message.reply_text(result)
-        else:
-            await update.message.reply_text("❌ حدث خطأ في إضافة التعليق.")
-        
-        # إزالة البيانات المؤقتة
-        context.user_data.pop('dua_id', None)
 
     elif mode == 'suggestion':
         # إرسال الاقتراح للمالك
@@ -1330,7 +1197,7 @@ if __name__ == '__main__':
     # معالجات التفاعل مع الأدعية
     app.add_handler(CallbackQueryHandler(handle_dua_interaction, pattern="^dua_"))
     
-    # معالجات لوحة التحكم للمالك - محدث
+    # معالجات لوحة التحكم للمالك
     app.add_handler(CallbackQueryHandler(handle_callbacks, pattern="^(broadcast|announce|list_users|search_user|delete_user|count|status|test_broadcast|advanced_stats|growth_analytics|user_management|points_stats|interaction_stats|top_duas|system_status|manage_challenges|view_feedback)$"))
 
     # معالجات الرسائل
@@ -1373,13 +1240,15 @@ if __name__ == '__main__':
     # تشغيل البوت
     print("✅ بوت صدقة مع نظام التفاعل مع الأدعية يعمل الآن...")
     print("🤲 الميزات المتاحة:")
-    print("   • نظام التفاعل مع الأدعية (آمين، إعجاب، تعليق)")
+    print("   • نظام التفاعل مع الأدعية (آمين، إعجاب)")
     print("   • نظام النقاط والإنجازات المتقدم")
     print("   • لوحة تحكم شاملة للمالك")
     print("   • إحصائيات مفصلة ومتقدمة")
     print("   • نظام حفظ وتنظيف البيانات التلقائي")
     print("   • معالجة أخطاء محسنة")
     print("   • دعم جميع أنواع الوسائط في الرسائل الجماعية")
+    print("   • حساب دقيق للصلاة القادمة")
+    print("   • زر تذكير واضح ومفهوم")
     
     try:
         app.run_polling()

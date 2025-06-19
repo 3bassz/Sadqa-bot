@@ -20,6 +20,10 @@ user_points = db["user_points"]
 user_achievements = db["user_achievements"]
 dua_reactions = db["dua_reactions"]
 user_interactions = db["user_interactions"]
+# إضافة مجموعات جديدة للتوافق مع الكود الأساسي
+dua_interactions = db["dua_interactions"]
+dua_messages = db["dua_messages"]
+weekly_challenges = db["weekly_challenges"]
 
 def init_database():
     """تهيئة قاعدة البيانات مع الفهارس المطلوبة"""
@@ -30,6 +34,10 @@ def init_database():
         user_achievements.create_index([("user_id", 1), ("achievement_key", 1)], unique=True)
         dua_reactions.create_index([("item_id", 1), ("reaction_type", 1), ("item_type", 1)], unique=True)
         user_interactions.create_index([("user_id", 1), ("interaction_type", 1)], unique=True)
+        # فهارس جديدة
+        dua_interactions.create_index([("dua_id", 1), ("user_id", 1)], unique=True)
+        dua_messages.create_index("dua_id", unique=True)
+        weekly_challenges.create_index("week_key", unique=True)
         
         logger.info("تم تهيئة قاعدة البيانات MongoDB بنجاح")
     except Exception as e:
@@ -108,6 +116,8 @@ def remove_user(user_id: int):
         user_points.delete_one({"user_id": user_id})
         user_achievements.delete_many({"user_id": user_id})
         user_interactions.delete_many({"user_id": user_id})
+        # حذف تفاعلات الأدعية
+        dua_interactions.delete_many({"user_id": user_id})
         
         logger.info(f"تم حذف المستخدم {user_id} وجميع بياناته")
     except Exception as e:
@@ -145,7 +155,7 @@ def get_user_location(user_id: int):
         logger.error(f"خطأ في جلب موقع المستخدم {user_id}: {e}")
         return None
 
-# دوال النقاط الجديدة
+# دوال النقاط الجديدة - محدثة للتوافق مع الكود الأساسي
 def save_user_points(user_id: int, points: int) -> bool:
     """حفظ نقاط المستخدم"""
     try:
@@ -171,7 +181,27 @@ def get_user_points(user_id: int) -> int:
         logger.error(f"خطأ في جلب النقاط للمستخدم {user_id}: {e}")
         return 0
 
-# دوال الإنجازات الجديدة
+def add_user_points(user_id: int, points: int, reason: str = ""):
+    """إضافة نقاط للمستخدم"""
+    try:
+        current_points = get_user_points(user_id)
+        new_points = current_points + points
+        save_user_points(user_id, new_points)
+        logger.info(f"تم إضافة {points} نقطة للمستخدم {user_id} - {reason}")
+    except Exception as e:
+        logger.error(f"خطأ في إضافة النقاط للمستخدم {user_id}: {e}")
+
+def remove_user_points(user_id: int, points: int, reason: str = ""):
+    """خصم نقاط من المستخدم"""
+    try:
+        current_points = get_user_points(user_id)
+        new_points = max(0, current_points - points)
+        save_user_points(user_id, new_points)
+        logger.info(f"تم خصم {points} نقطة من المستخدم {user_id} - {reason}")
+    except Exception as e:
+        logger.error(f"خطأ في خصم النقاط للمستخدم {user_id}: {e}")
+
+# دوال الإنجازات الجديدة - محدثة
 def save_user_achievement(user_id: int, achievement_key: str) -> bool:
     """حفظ إنجاز المستخدم"""
     try:
@@ -201,7 +231,152 @@ def get_user_achievements(user_id: int) -> List[str]:
         logger.error(f"خطأ في جلب الإنجازات للمستخدم {user_id}: {e}")
         return []
 
-# دوال تفاعلات الأدعية الجديدة
+def check_and_award_achievement(user_id: int, achievement_key: str):
+    """فحص وإعطاء الإنجاز للمستخدم"""
+    try:
+        existing_achievements = get_user_achievements(user_id)
+        if achievement_key not in existing_achievements:
+            save_user_achievement(user_id, achievement_key)
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"خطأ في فحص الإنجاز للمستخدم {user_id}: {e}")
+        return False
+
+# دوال تفاعلات الأدعية الجديدة - محدثة للتوافق مع الكود الأساسي
+def save_dua_interaction(dua_id: str, user_id: int, interaction_type: str) -> bool:
+    """حفظ تفاعل مع دعاء"""
+    try:
+        result = dua_interactions.update_one(
+            {"dua_id": dua_id, "user_id": user_id},
+            {"$set": {
+                "dua_id": dua_id,
+                "user_id": user_id,
+                "interaction_type": interaction_type,
+                "timestamp": datetime.now()
+            }},
+            upsert=True
+        )
+        return result.acknowledged
+    except Exception as e:
+        logger.error(f"خطأ في حفظ تفاعل الدعاء: {e}")
+        return False
+
+def remove_dua_interaction(dua_id: str, user_id: int) -> bool:
+    """حذف تفاعل مع دعاء"""
+    try:
+        result = dua_interactions.delete_one({"dua_id": dua_id, "user_id": user_id})
+        return result.deleted_count > 0
+    except Exception as e:
+        logger.error(f"خطأ في حذف تفاعل الدعاء: {e}")
+        return False
+
+def get_dua_interactions_summary(dua_id: str) -> Dict[str, int]:
+    """جلب ملخص تفاعلات دعاء"""
+    try:
+        pipeline = [
+            {"$match": {"dua_id": dua_id}},
+            {"$group": {
+                "_id": "$interaction_type",
+                "count": {"$sum": 1}
+            }}
+        ]
+        
+        results = list(dua_interactions.aggregate(pipeline))
+        summary = {"amen": 0, "like": 0, "total": 0}
+        
+        for result in results:
+            if result["_id"] in ["amen", "like"]:
+                summary[result["_id"]] = result["count"]
+                summary["total"] += result["count"]
+                
+        return summary
+    except Exception as e:
+        logger.error(f"خطأ في جلب ملخص التفاعلات: {e}")
+        return {"amen": 0, "like": 0, "total": 0}
+
+def check_user_dua_interaction(dua_id: str, user_id: int) -> Optional[str]:
+    """فحص إذا كان المستخدم تفاعل مع الدعاء"""
+    try:
+        interaction = dua_interactions.find_one(
+            {"dua_id": dua_id, "user_id": user_id},
+            {"_id": 0, "interaction_type": 1}
+        )
+        return interaction.get("interaction_type") if interaction else None
+    except Exception as e:
+        logger.error(f"خطأ في فحص تفاعل المستخدم: {e}")
+        return None
+
+def get_user_interaction_history(user_id: int) -> List[str]:
+    """جلب تاريخ تفاعلات المستخدم مع الأدعية"""
+    try:
+        interactions = dua_interactions.find(
+            {"user_id": user_id},
+            {"_id": 0, "dua_id": 1}
+        )
+        return [interaction["dua_id"] for interaction in interactions]
+    except Exception as e:
+        logger.error(f"خطأ في جلب تاريخ التفاعلات للمستخدم {user_id}: {e}")
+        return []
+
+# دوال رسائل الأدعية
+def save_dua_message(dua_id: str, text: str, message_ids: List[Dict]) -> bool:
+    """حفظ رسالة دعاء"""
+    try:
+        result = dua_messages.update_one(
+            {"dua_id": dua_id},
+            {"$set": {
+                "dua_id": dua_id,
+                "text": text,
+                "message_ids": message_ids,
+                "created_at": datetime.now()
+            }},
+            upsert=True
+        )
+        return result.acknowledged
+    except Exception as e:
+        logger.error(f"خطأ في حفظ رسالة الدعاء: {e}")
+        return False
+
+def get_dua_message(dua_id: str) -> Optional[Dict]:
+    """جلب رسالة دعاء"""
+    try:
+        return dua_messages.find_one({"dua_id": dua_id}, {"_id": 0})
+    except Exception as e:
+        logger.error(f"خطأ في جلب رسالة الدعاء: {e}")
+        return None
+
+# دوال التحديات الأسبوعية
+def save_weekly_challenge(week_key: str, challenge_text: str) -> bool:
+    """حفظ التحدي الأسبوعي"""
+    try:
+        result = weekly_challenges.update_one(
+            {"week_key": week_key},
+            {"$set": {
+                "week_key": week_key,
+                "challenge_text": challenge_text,
+                "created_at": datetime.now()
+            }},
+            upsert=True
+        )
+        return result.acknowledged
+    except Exception as e:
+        logger.error(f"خطأ في حفظ التحدي الأسبوعي: {e}")
+        return False
+
+def get_weekly_challenge(week_key: str) -> Optional[str]:
+    """جلب التحدي الأسبوعي"""
+    try:
+        challenge = weekly_challenges.find_one(
+            {"week_key": week_key},
+            {"_id": 0, "challenge_text": 1}
+        )
+        return challenge.get("challenge_text") if challenge else None
+    except Exception as e:
+        logger.error(f"خطأ في جلب التحدي الأسبوعي: {e}")
+        return None
+
+# دوال تفاعلات الأدعية القديمة - للتوافق مع الكود الموجود
 def save_dua_reaction(item_id: str, reaction_type: str, count: int, item_type: str = "dua") -> bool:
     """حفظ تفاعل مع دعاء"""
     try:
@@ -311,22 +486,23 @@ def get_total_reactions_count() -> Dict[str, int]:
     try:
         pipeline = [
             {"$group": {
-                "_id": "$reaction_type",
-                "total": {"$sum": "$count"}
+                "_id": "$interaction_type",
+                "total": {"$sum": 1}
             }}
         ]
         
-        results = list(dua_reactions.aggregate(pipeline))
-        reactions = {"amen": 0, "likes": 0, "comments": 0}
+        results = list(dua_interactions.aggregate(pipeline))
+        reactions = {"amen": 0, "like": 0, "total": 0}
         
         for result in results:
-            if result["_id"] in reactions:
+            if result["_id"] in ["amen", "like"]:
                 reactions[result["_id"]] = result["total"]
+                reactions["total"] += result["total"]
                 
         return reactions
     except Exception as e:
         logger.error(f"خطأ في جلب إجمالي التفاعلات: {e}")
-        return {"amen": 0, "likes": 0, "comments": 0}
+        return {"amen": 0, "like": 0, "total": 0}
 
 # تنظيف البيانات القديمة
 def cleanup_old_data():
@@ -344,6 +520,12 @@ def cleanup_old_data():
         # تنظيف التفاعلات الصفرية
         zero_reactions = dua_reactions.delete_many({"count": {"$lte": 0}})
         logger.info(f"تم حذف {zero_reactions.deleted_count} تفاعل صفري")
+        
+        # تنظيف رسائل الأدعية القديمة
+        old_messages = dua_messages.delete_many({
+            "created_at": {"$lt": thirty_days_ago}
+        })
+        logger.info(f"تم حذف {old_messages.deleted_count} رسالة دعاء قديمة")
         
     except Exception as e:
         logger.error(f"خطأ في تنظيف البيانات القديمة: {e}")
@@ -379,12 +561,14 @@ def backup_user_data(user_id: int) -> Dict[str, Any]:
         points = get_user_points(user_id)
         achievements = get_user_achievements(user_id)
         interactions = get_user_interactions(user_id)
+        interaction_history = get_user_interaction_history(user_id)
         
         return {
             "user_data": user_data,
             "points": points,
             "achievements": achievements,
             "interactions": interactions,
+            "interaction_history": interaction_history,
             "backup_date": datetime.now().isoformat()
         }
     except Exception as e:
