@@ -1261,4 +1261,4 @@ if __name__ == '__main__':
         save_data_periodically()
     finally:
         print("👋 تم إنهاء البوت بأمان")
-    
+
